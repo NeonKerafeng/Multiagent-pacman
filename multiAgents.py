@@ -75,7 +75,76 @@ class ReflexAgent(Agent):
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
 
         "*** YOUR CODE HERE ***"
-        return successorGameState.getScore()
+
+        # Use the successor state because this heuristic evaluates the result of taking this action.
+        pos = successorGameState.getPacmanPosition()
+        x, y = pos
+        foodList = successorGameState.getFood().asList()
+        score = successorGameState.getScore()
+
+        # Avoid stopping because it usually wastes tempo and increases ghost risk.
+        if action == 'Stop':
+            return -10**9
+
+        # Reward eating food and strongly prefer states with fewer remaining food pellets.
+        if foodList:
+            closestFoodDist = min(manhattanDistance(pos, food) for food in foodList)
+            score += 12.0 / (closestFoodDist + 1.0)
+            score -= 4.0 * len(foodList)
+
+        # Split food into horizontal and vertical groups around Pacman's current position.
+        leftFoods = [food for food in foodList if food[0] < x]
+        rightFoods = [food for food in foodList if food[0] > x]
+        downFoods = [food for food in foodList if food[1] < y]
+        upFoods = [food for food in foodList if food[1] > y]
+
+        # Choose the smaller non-empty side first, similar to clearing small components before large ones.
+        def chooseSmallSide(groupA, groupB):
+            if groupA and groupB:
+                return groupA if len(groupA) <= len(groupB) else groupB
+            return groupA if groupA else groupB
+
+        # Reward moving toward the smaller horizontal food component.
+        horizontalTarget = chooseSmallSide(leftFoods, rightFoods)
+        if horizontalTarget:
+            nearestHorizontalDist = min(manhattanDistance(pos, food) for food in horizontalTarget)
+            score += 8.0 / (nearestHorizontalDist + 1.0)
+            score += 2.0 / (len(horizontalTarget) + 1.0)
+
+        # Reward moving toward the smaller vertical food component.
+        verticalTarget = chooseSmallSide(downFoods, upFoods)
+        if verticalTarget:
+            nearestVerticalDist = min(manhattanDistance(pos, food) for food in verticalTarget)
+            score += 8.0 / (nearestVerticalDist + 1.0)
+            score += 2.0 / (len(verticalTarget) + 1.0)
+
+        # Handle ghosts with a more aggressive risk-reward heuristic.
+        for ghostState in newGhostStates:
+            ghostPos = ghostState.getPosition()
+            ghostDist = manhattanDistance(pos, ghostPos)
+            scaredTime = ghostState.scaredTimer
+
+            # If Pacman reaches an active ghost, this state is fatal.
+            if ghostDist == 0 and scaredTime == 0:
+                return -10**9
+
+            # Strongly reward chasing ghosts that are safely edible.
+            if scaredTime > ghostDist + 1:
+                score += 260.0 / (ghostDist + 1.0)
+                continue
+
+            # Slightly reward approaching scared ghosts even if eating them is not guaranteed.
+            if scaredTime > 0:
+                score += 60.0 / (ghostDist + 1.0)
+                continue
+
+            # Penalize only nearby active ghosts, allowing Pacman to play more aggressively.
+            if ghostDist <= 2:
+                score -= 220.0 / ((ghostDist + 0.5) ** 2)
+            elif ghostDist <= 4:
+                score -= 45.0 / (ghostDist + 1.0)
+
+        return score
 
 def scoreEvaluationFunction(currentGameState: GameState):
     """
