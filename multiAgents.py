@@ -254,7 +254,72 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        best_action = None
+        best_score = float("-inf")
+
+        alpha = float("-inf")
+        beta = float("inf")
+
+        for action in gameState.getLegalActions(0):
+            successor = gameState.generateSuccessor(0, action)
+            score = self.rec_alphabeta(successor, 0, 1, alpha, beta)
+
+            # Pacman set max
+            if score > best_score:
+                best_score = score
+                best_action = action
+
+            alpha = max(alpha, best_score)
+
+        return best_action
+
+    def rec_alphabeta(self, gameState, curr_depth, agent_index, alpha, beta):
+        # States transitions
+        if gameState.isWin() or gameState.isLose() or curr_depth == self.depth:
+            return self.evaluationFunction(gameState)
+
+        actions = gameState.getLegalActions(agent_index)
+
+        if not actions:
+            return self.evaluationFunction(gameState)
+
+        num_agents = gameState.getNumAgents()
+        next_agent = (agent_index + 1) % num_agents
+        next_depth = curr_depth + 1 if next_agent == 0 else curr_depth
+
+        # Pacman
+        if agent_index == 0:
+            value = float("-inf")
+
+            for action in actions:
+                successor = gameState.generateSuccessor(agent_index, action)
+                score = self.rec_alphabeta(successor, next_depth, next_agent, alpha, beta)
+                value = max(value, score)
+
+                # Pruning
+                if value > beta:
+                    return value
+
+                alpha = max(alpha, value)
+
+            return value
+
+        # Ghosts
+        value = float("inf")
+
+        for action in actions:
+            successor = gameState.generateSuccessor(agent_index, action)
+            score = self.rec_alphabeta(successor, next_depth, next_agent, alpha, beta)
+            value = min(value, score)
+
+            # Pruning
+            if value < alpha:
+                return value
+
+            beta = min(beta, value)
+
+        return value
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
